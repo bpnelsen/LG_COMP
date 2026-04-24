@@ -4,14 +4,9 @@ import { analyzeScreenshot } from '../services/claude';
 
 const router = Router();
 
-// POST /captures — receive a screenshot from the Chrome extension
 router.post('/', async (req: Request, res: Response) => {
   const { url, title, trigger, screenshot, timestamp } = req.body as {
-    url: string;
-    title: string;
-    trigger: string;
-    screenshot: string;
-    timestamp: string;
+    url: string; title: string; trigger: string; screenshot: string; timestamp: string;
   };
 
   if (!url || !screenshot) {
@@ -19,27 +14,23 @@ router.post('/', async (req: Request, res: Response) => {
     return;
   }
 
-  // Store the raw capture immediately
-  const capture = db
+  const { lastInsertRowid } = db
     .prepare(
       `INSERT INTO captures (url, title, trigger, screenshot, created_at)
-       VALUES (?, ?, ?, ?, ?)
-       RETURNING id`
+       VALUES (?, ?, ?, ?, ?)`
     )
-    .get(url, title ?? '', trigger ?? 'unknown', screenshot, timestamp ?? new Date().toISOString()) as { id: number };
+    .run(url, title ?? '', trigger ?? 'unknown', screenshot, timestamp ?? new Date().toISOString());
 
-  res.status(202).json({ captureId: capture.id, status: 'queued' });
+  const captureId = Number(lastInsertRowid);
+  res.status(202).json({ captureId, status: 'queued' });
 
-  // Analyse asynchronously so the extension doesn't wait
   setImmediate(async () => {
     try {
       const analysis = await analyzeScreenshot(screenshot, url, title ?? '');
 
-      // Persist analysis
       db.prepare(
-        `INSERT INTO analyses (capture_id, page_name, section, raw_json)
-         VALUES (?, ?, ?, ?)`
-      ).run(capture.id, analysis.page_name, analysis.section, JSON.stringify(analysis));
+        `INSERT INTO analyses (capture_id, page_name, section, raw_json) VALUES (?, ?, ?, ?)`
+      ).run(captureId, analysis.page_name, analysis.section, JSON.stringify(analysis));
 
       // Upsert page
       const existing = db
@@ -53,53 +44,39 @@ router.post('/', async (req: Request, res: Response) => {
         ).run(analysis.page_name, analysis.section, existing.id);
         pageId = existing.id;
       } else {
-        const inserted = db
-          .prepare(
-            `INSERT INTO pages (url_pattern, page_name, section) VALUES (?, ?, ?) RETURNING id`
-          )
-          .get(analysis.url_pattern, analysis.page_name, analysis.section) as { id: number };
-        pageId = inserted.id;
+        const { lastInsertRowid: pid } = db
+          .prepare(`INSERT INTO pages (url_pattern, page_name, section) VALUES (?, ?, ?)`)
+          .run(analysis.url_pattern, analysis.page_name, analysis.section);
+        pageId = Number(pid);
       }
 
-      // Insert components (replace all for this page on each new analysis)
       db.prepare(`DELETE FROM components WHERE page_id = ?`).run(pageId);
       const insertComp = db.prepare(
-        `INSERT INTO components (page_id, type, label, purpose, raw_fields)
-         VALUES (?, ?, ?, ?, ?)`
+        `INSERT INTO components (page_id, type, label, purpose, raw_fields) VALUES (?, ?, ?, ?, ?)`
       );
       for (const comp of analysis.components) {
-        insertComp.run(
-          pageId,
-          comp.type,
-          comp.label,
-          comp.purpose ?? '',
-          JSON.stringify(comp.fields ?? [])
-        );
+        insertComp.run(pageId, comp.type, comp.label, comp.purpose ?? '', JSON.stringify(comp.fields ?? []));
       }
 
-      // Record flow (previous page → this page)
+      // Record navigation flow
       const prev = db
         .prepare(`SELECT url FROM captures WHERE id < ? ORDER BY id DESC LIMIT 1`)
-        .get(capture.id) as { url: string } | undefined;
+        .get(captureId) as { url: string } | undefined;
 
       if (prev && prev.url !== url) {
-        const fromPattern = normaliseUrl(prev.url);
-        const toPattern = analysis.url_pattern;
         db.prepare(
-          `INSERT INTO flows (from_pattern, to_pattern, trigger, count)
-           VALUES (?, ?, ?, 1)
+          `INSERT INTO flows (from_pattern, to_pattern, trigger, count) VALUES (?, ?, ?, 1)
            ON CONFLICT(from_pattern, to_pattern, trigger) DO UPDATE SET count=count+1`
-        ).run(fromPattern, toPattern, trigger ?? 'unknown');
+        ).run(normaliseUrl(prev.url), analysis.url_pattern, trigger ?? 'unknown');
       }
 
-      console.log(`[analysis] capture ${capture.id} → "${analysis.page_name}" (${analysis.section})`);
+      console.log(`[analysis] capture ${captureId} → "${analysis.page_name}" (${analysis.section})`);
     } catch (err) {
-      console.error(`[analysis] capture ${capture.id} failed:`, (err as Error).message);
+      console.error(`[analysis] capture ${captureId} failed:`, (err as Error).message);
     }
   });
 });
 
-// GET /captures — list recent captures
 router.get('/', (_req: Request, res: Response) => {
   const rows = db
     .prepare(`SELECT id, url, title, trigger, created_at FROM captures ORDER BY id DESC LIMIT 100`)
@@ -110,9 +87,7 @@ router.get('/', (_req: Request, res: Response) => {
 function normaliseUrl(url: string): string {
   try {
     const u = new URL(url);
-    // Replace numeric IDs and UUIDs in path segments with :id
-    const pattern = u.pathname.replace(/\/[0-9a-f-]{8,}/gi, '/:id').replace(/\/\d+/g, '/:id');
-    return pattern || '/';
+    return u.pathname.replace(/\/[0-9a-f-]{8,}/gi, '/:id').replace(/\/\d+/g, '/:id') || '/';
   } catch {
     return url;
   }

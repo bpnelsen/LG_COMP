@@ -1,13 +1,14 @@
-import Database from 'better-sqlite3';
+import { DatabaseSync } from 'node:sqlite';
 import path from 'path';
 import fs from 'fs';
 
 const dbPath = process.env.DB_PATH ?? './data/companion.db';
 fs.mkdirSync(path.dirname(path.resolve(dbPath)), { recursive: true });
 
-const db = new Database(path.resolve(dbPath));
-db.pragma('journal_mode = WAL');
-db.pragma('foreign_keys = ON');
+const db = new DatabaseSync(path.resolve(dbPath));
+
+db.exec("PRAGMA journal_mode = WAL");
+db.exec("PRAGMA foreign_keys = ON");
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS captures (
@@ -15,7 +16,7 @@ db.exec(`
     url         TEXT NOT NULL,
     title       TEXT NOT NULL DEFAULT '',
     trigger     TEXT NOT NULL,
-    screenshot  TEXT NOT NULL,         -- base64 data URL
+    screenshot  TEXT NOT NULL,
     created_at  TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
@@ -24,7 +25,7 @@ db.exec(`
     capture_id   INTEGER NOT NULL REFERENCES captures(id),
     page_name    TEXT NOT NULL DEFAULT '',
     section      TEXT NOT NULL DEFAULT '',
-    raw_json     TEXT NOT NULL,        -- full Claude response JSON
+    raw_json     TEXT NOT NULL,
     created_at   TEXT NOT NULL DEFAULT (datetime('now'))
   );
 
@@ -44,7 +45,7 @@ db.exec(`
     type         TEXT NOT NULL,
     label        TEXT NOT NULL,
     purpose      TEXT NOT NULL DEFAULT '',
-    raw_fields   TEXT NOT NULL DEFAULT '[]'  -- JSON array
+    raw_fields   TEXT NOT NULL DEFAULT '[]'
   );
 
   CREATE TABLE IF NOT EXISTS flows (
