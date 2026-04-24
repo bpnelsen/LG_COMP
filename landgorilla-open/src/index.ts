@@ -73,8 +73,7 @@ async function start(): Promise<void> {
   }
 }
 
-// On Vercel the function is invoked per-request; listen only runs locally
-if (!process.env.VERCEL) {
+if (!process.env.VERCEL && process.env.NODE_ENV !== 'test') {
   start();
 }
 
