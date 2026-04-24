@@ -20,6 +20,7 @@
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
     "pg": "^8.11.3",
+    "swagger-ui-express": "^5.0.1",
     "winston": "^3.12.0",
     "zod": "^3.22.4"
   },
@@ -32,6 +33,7 @@
     "@types/node": "^20.11.30",
     "@types/pg": "^8.11.2",
     "@types/supertest": "^7.2.0",
+    "@types/swagger-ui-express": "^4.1.8",
     "@vercel/node": "^5.7.13",
     "jest": "^30.3.0",
     "supertest": "^7.2.2",

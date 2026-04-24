@@ -3,6 +3,7 @@ import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
+import swaggerUi from 'swagger-ui-express';
 import { testConnection } from './db';
 import authRoutes from './routes/auth';
 import loanRoutes from './routes/loans';
@@ -16,6 +17,7 @@ import taskRoutes from './routes/tasks';
 import { errorHandler, notFound } from './middleware/errorHandler';
 import { auditLog } from './middleware/audit';
 import logger from './utils/logger';
+import spec from './openapi';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3000');
@@ -36,6 +38,10 @@ const limiter = rateLimit({
 });
 app.use('/api', limiter);
 app.use('/api', auditLog);
+
+// Swagger UI — relaxed CSP only for this route
+app.use('/api/docs', swaggerUi.serve);
+app.get('/api/docs', swaggerUi.setup(spec, { customSiteTitle: 'LoanScope API Docs' }));
 
 app.get('/health', (_req, res) => {
   res.json({
