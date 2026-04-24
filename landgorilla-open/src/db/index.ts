@@ -11,8 +11,8 @@ const pool = new Pool(
         connectionString: process.env.DATABASE_URL,
         ssl: { rejectUnauthorized: false },
         max: 5,
-        idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 5000,
+        idleTimeoutMillis: 10000,
+        connectionTimeoutMillis: 8000,
         ...(isSupabasePooler && { statement_timeout: 30000 }),
       }
     : {

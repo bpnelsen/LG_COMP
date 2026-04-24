@@ -22,6 +22,9 @@ import spec from './openapi';
 const app = express();
 const PORT = parseInt(process.env.PORT || '3000');
 
+// Required for express-rate-limit to work correctly behind Vercel's proxy
+app.set('trust proxy', 1);
+
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
