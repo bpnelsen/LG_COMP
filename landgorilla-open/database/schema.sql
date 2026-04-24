@@ -526,7 +526,7 @@ INSERT INTO users (organization_id, email, password_hash, first_name, last_name,
 VALUES (
   '00000000-0000-0000-0000-000000000001',
   'admin@loanscope.io',
-  '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQyCJnkyTFN0pBIlaSvmJz3AK',
+  '$2a$12$VQ4dn4lWpTvmmK67HIxtregn.us2qgeFpszDPTilLbxmyERwIUiRO',
   'Admin',
   'User',
   'admin'
