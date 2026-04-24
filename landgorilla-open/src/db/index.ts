@@ -1,6 +1,10 @@
 import { Pool, PoolClient } from 'pg';
 import logger from '../utils/logger';
 
+// Supabase transaction pooler URLs contain port 6543; those require
+// statement_cache_size=0 to avoid named prepared statements.
+const isSupabasePooler = (process.env.DATABASE_URL ?? '').includes(':6543');
+
 const pool = new Pool(
   process.env.DATABASE_URL
     ? {
@@ -9,6 +13,7 @@ const pool = new Pool(
         max: 5,
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 5000,
+        ...(isSupabasePooler && { statement_timeout: 30000 }),
       }
     : {
         host: process.env.DB_HOST || 'localhost',
