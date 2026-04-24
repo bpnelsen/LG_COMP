@@ -7,7 +7,14 @@ import { testConnection } from './db';
 import authRoutes from './routes/auth';
 import loanRoutes from './routes/loans';
 import portfolioRoutes from './routes/portfolio';
+import borrowerRoutes from './routes/borrowers';
+import propertyRoutes from './routes/properties';
+import covenantRoutes from './routes/covenants';
+import disbursementRoutes from './routes/disbursements';
+import paymentRoutes from './routes/payments';
+import taskRoutes from './routes/tasks';
 import { errorHandler, notFound } from './middleware/errorHandler';
+import { auditLog } from './middleware/audit';
 import logger from './utils/logger';
 
 const app = express();
@@ -28,6 +35,7 @@ const limiter = rateLimit({
   legacyHeaders: false,
 });
 app.use('/api', limiter);
+app.use('/api', auditLog);
 
 app.get('/health', (_req, res) => {
   res.json({
@@ -38,8 +46,14 @@ app.get('/health', (_req, res) => {
 });
 
 app.use('/api/auth', authRoutes);
+app.use('/api/borrowers', borrowerRoutes);
+app.use('/api/properties', propertyRoutes);
 app.use('/api/loans', loanRoutes);
+app.use('/api/loans/:loanId/covenants', covenantRoutes);
+app.use('/api/loans/:loanId/disbursements', disbursementRoutes);
+app.use('/api/loans/:loanId/payments', paymentRoutes);
 app.use('/api/portfolio', portfolioRoutes);
+app.use('/api/tasks', taskRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
