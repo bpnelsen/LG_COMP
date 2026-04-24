@@ -22,7 +22,15 @@ import spec from './openapi';
 const app = express();
 const PORT = parseInt(process.env.PORT || '3000');
 
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      ...helmet.contentSecurityPolicy.getDefaultDirectives(),
+      'script-src': ["'self'", "'unsafe-inline'"],
+      'img-src': ["'self'", 'data:', 'https:'],
+    },
+  },
+}));
 app.use(cors({
   origin: process.env.CORS_ORIGIN || '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
