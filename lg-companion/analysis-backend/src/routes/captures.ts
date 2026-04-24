@@ -84,6 +84,66 @@ router.get('/', (_req: Request, res: Response) => {
   res.json(rows);
 });
 
+// POST /captures/reanalyze — reprocess all captures that have no analysis yet
+router.post('/reanalyze', (req: Request, res: Response) => {
+  const unanalyzed = db
+    .prepare(
+      `SELECT c.id, c.url, c.title, c.trigger, c.screenshot
+       FROM captures c
+       LEFT JOIN analyses a ON a.capture_id = c.id
+       WHERE a.id IS NULL
+       ORDER BY c.id ASC`
+    )
+    .all() as { id: number; url: string; title: string; trigger: string; screenshot: string }[];
+
+  res.json({ queued: unanalyzed.length });
+  console.log(`[reanalyze] queuing ${unanalyzed.length} unanalyzed captures`);
+
+  // Process sequentially with a small delay to avoid rate limits
+  (async () => {
+    for (const capture of unanalyzed) {
+      try {
+        const analysis = await analyzeScreenshot(capture.screenshot, capture.url, capture.title);
+
+        db.prepare(
+          `INSERT INTO analyses (capture_id, page_name, section, raw_json) VALUES (?, ?, ?, ?)`
+        ).run(capture.id, analysis.page_name, analysis.section, JSON.stringify(analysis));
+
+        const existing = db
+          .prepare(`SELECT id FROM pages WHERE url_pattern = ?`)
+          .get(analysis.url_pattern) as { id: number } | undefined;
+
+        let pageId: number;
+        if (existing) {
+          db.prepare(
+            `UPDATE pages SET page_name=?, section=?, last_seen=datetime('now'), visit_count=visit_count+1 WHERE id=?`
+          ).run(analysis.page_name, analysis.section, existing.id);
+          pageId = existing.id;
+        } else {
+          const { lastInsertRowid: pid } = db
+            .prepare(`INSERT INTO pages (url_pattern, page_name, section) VALUES (?, ?, ?)`)
+            .run(analysis.url_pattern, analysis.page_name, analysis.section);
+          pageId = Number(pid);
+        }
+
+        db.prepare(`DELETE FROM components WHERE page_id = ?`).run(pageId);
+        const insertComp = db.prepare(
+          `INSERT INTO components (page_id, type, label, purpose, raw_fields) VALUES (?, ?, ?, ?, ?)`
+        );
+        for (const comp of analysis.components) {
+          insertComp.run(pageId, comp.type, comp.label, comp.purpose ?? '', JSON.stringify(comp.fields ?? []));
+        }
+
+        console.log(`[reanalyze] capture ${capture.id} → "${analysis.page_name}" (${analysis.section})`);
+        await new Promise(r => setTimeout(r, 500)); // brief pause between requests
+      } catch (err) {
+        console.error(`[reanalyze] capture ${capture.id} failed:`, (err as Error).message);
+      }
+    }
+    console.log('[reanalyze] done');
+  })();
+});
+
 function normaliseUrl(url: string): string {
   try {
     const u = new URL(url);
