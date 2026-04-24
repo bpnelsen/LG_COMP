@@ -73,6 +73,9 @@ async function start(): Promise<void> {
   }
 }
 
-start();
+// On Vercel the function is invoked per-request; listen only runs locally
+if (!process.env.VERCEL) {
+  start();
+}
 
 export default app;
