@@ -19,11 +19,18 @@ app.use('/captures', captureRoutes);
 app.use('/map', mapRoutes);
 
 // Serve the viewer build if present
+import fs from 'fs';
 const viewerDist = path.resolve(__dirname, '../../viewer/dist');
-app.use(express.static(viewerDist));
-app.get('*', (_req, res) => {
-  res.sendFile(path.join(viewerDist, 'index.html'));
-});
+if (fs.existsSync(viewerDist)) {
+  app.use(express.static(viewerDist));
+  app.get('*', (_req, res) => {
+    res.sendFile(path.join(viewerDist, 'index.html'));
+  });
+} else {
+  app.get('*', (_req, res) => {
+    res.json({ message: 'Viewer not built. Run: cd viewer && npm install && npm run dev (port 5174)' });
+  });
+}
 
 app.listen(PORT, () => {
   console.log(`LG Companion backend running on http://localhost:${PORT}`);
