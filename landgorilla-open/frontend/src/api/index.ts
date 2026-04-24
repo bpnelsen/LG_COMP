@@ -70,3 +70,16 @@ export const updateTask = (id: string, data: Record<string, unknown>) =>
 
 export const createTask = (data: Record<string, unknown>) =>
   api.post('/tasks', data).then((r) => r.data.data);
+
+// ── Properties ──────────────────────────────────────────────────────────────
+export const getProperties = (params?: Record<string, unknown>) =>
+  api.get('/properties', { params }).then((r) => r.data);
+
+export const getProperty = (id: string) =>
+  api.get(`/properties/${id}`).then((r) => r.data.data);
+
+export const createProperty = (data: Record<string, unknown>) =>
+  api.post('/properties', data).then((r) => r.data.data);
+
+export const addValuation = (propertyId: string, data: Record<string, unknown>) =>
+  api.post(`/properties/${propertyId}/valuations`, data).then((r) => r.data.data);

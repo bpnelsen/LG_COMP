@@ -2,13 +2,14 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import {
   LayoutDashboard, FileText, Users, CheckSquare,
-  LogOut, Building2, ChevronRight,
+  LogOut, Building2, ChevronRight, MapPin,
 } from 'lucide-react';
 
 const nav = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard, exact: true },
   { to: '/loans', label: 'Loans', icon: FileText },
   { to: '/borrowers', label: 'Borrowers', icon: Users },
+  { to: '/properties', label: 'Properties', icon: MapPin },
   { to: '/tasks', label: 'Tasks', icon: CheckSquare },
 ];
 

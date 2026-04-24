@@ -9,6 +9,8 @@ import LoanDetail from './pages/LoanDetail';
 import Borrowers from './pages/Borrowers';
 import BorrowerDetail from './pages/BorrowerDetail';
 import Tasks from './pages/Tasks';
+import Properties from './pages/Properties';
+import PropertyDetail from './pages/PropertyDetail';
 import Spinner from './components/ui/Spinner';
 
 const qc = new QueryClient({
@@ -42,6 +44,8 @@ export default function App() {
               <Route path="/borrowers" element={<Borrowers />} />
               <Route path="/borrowers/:id" element={<BorrowerDetail />} />
               <Route path="/tasks" element={<Tasks />} />
+              <Route path="/properties" element={<Properties />} />
+              <Route path="/properties/:id" element={<PropertyDetail />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
