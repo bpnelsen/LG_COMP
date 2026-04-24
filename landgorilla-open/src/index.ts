@@ -55,10 +55,14 @@ app.use('/api/docs', swaggerUi.serve);
 app.get('/api/docs', swaggerUi.setup(spec, { customSiteTitle: 'LoanScope API Docs' }));
 
 app.get('/health', (_req, res) => {
+  const dbUrl = process.env.DATABASE_URL;
   res.json({
     status: 'healthy',
     version: process.env.npm_package_version || '1.0.0',
     timestamp: new Date().toISOString(),
+    db: dbUrl
+      ? `set (port ${dbUrl.match(/:(\d+)\//)?.[1] ?? 'unknown'})`
+      : 'not set — using env vars',
   });
 });
 
