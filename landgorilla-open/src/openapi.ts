@@ -175,6 +175,77 @@ const spec = {
           assigned_to: { type: 'string', format: 'uuid', nullable: true },
         },
       },
+      // ── Prolink schemas ───────────────────────────────────────────────────────
+      Contractor: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          organization_id: { type: 'string', format: 'uuid' },
+          company_name: { type: 'string' },
+          dba_name: { type: 'string', nullable: true },
+          contractor_type: { type: 'string', enum: ['general','electrical','plumbing','framing','roofing','hvac','concrete','masonry','painting','landscaping','other'] },
+          license_number: { type: 'string', nullable: true },
+          license_state: { type: 'string', nullable: true },
+          license_expiry: { type: 'string', format: 'date', nullable: true },
+          insurance_carrier: { type: 'string', nullable: true },
+          insurance_expiry: { type: 'string', format: 'date', nullable: true },
+          insurance_amount: { type: 'number', nullable: true },
+          bond_amount: { type: 'number', nullable: true },
+          bond_expiry: { type: 'string', format: 'date', nullable: true },
+          primary_contact_name: { type: 'string', nullable: true },
+          primary_contact_email: { type: 'string', format: 'email', nullable: true },
+          primary_contact_phone: { type: 'string', nullable: true },
+          status: { type: 'string', enum: ['active','inactive','suspended','pending_review'] },
+          is_approved_vendor: { type: 'boolean' },
+          approved_at: { type: 'string', format: 'date-time', nullable: true },
+          is_active: { type: 'boolean' },
+          created_at: { type: 'string', format: 'date-time' },
+          updated_at: { type: 'string', format: 'date-time' },
+        },
+      },
+      LoanContractor: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          loan_id: { type: 'string', format: 'uuid' },
+          contractor_id: { type: 'string', format: 'uuid' },
+          company_name: { type: 'string' },
+          contractor_type: { type: 'string' },
+          role: { type: 'string', enum: ['general_contractor','sub_contractor','architect','engineer','inspector'] },
+          contract_amount: { type: 'number', nullable: true },
+          scope_of_work: { type: 'string', nullable: true },
+          start_date: { type: 'string', format: 'date', nullable: true },
+          expected_completion_date: { type: 'string', format: 'date', nullable: true },
+          actual_completion_date: { type: 'string', format: 'date', nullable: true },
+          status: { type: 'string', enum: ['active','completed','terminated'] },
+          created_at: { type: 'string', format: 'date-time' },
+        },
+      },
+      DrawRequest: {
+        type: 'object',
+        properties: {
+          id: { type: 'string', format: 'uuid' },
+          loan_id: { type: 'string', format: 'uuid' },
+          contractor_id: { type: 'string', format: 'uuid', nullable: true },
+          contractor_name: { type: 'string', nullable: true },
+          draw_number: { type: 'integer' },
+          requested_amount: { type: 'number' },
+          requested_date: { type: 'string', format: 'date' },
+          description: { type: 'string', nullable: true },
+          line_items: { type: 'object', nullable: true },
+          inspector_name: { type: 'string', nullable: true },
+          inspection_date: { type: 'string', format: 'date', nullable: true },
+          inspection_notes: { type: 'string', nullable: true },
+          percent_complete: { type: 'number', nullable: true },
+          approved_amount: { type: 'number', nullable: true },
+          status: { type: 'string', enum: ['draft','submitted','inspection_scheduled','inspection_complete','approved','rejected','funded'] },
+          submitted_at: { type: 'string', format: 'date-time', nullable: true },
+          approved_at: { type: 'string', format: 'date-time', nullable: true },
+          funded_at: { type: 'string', format: 'date-time', nullable: true },
+          rejection_reason: { type: 'string', nullable: true },
+          created_at: { type: 'string', format: 'date-time' },
+        },
+      },
     },
   },
   security: [{ bearerAuth: [] }],
@@ -820,6 +891,256 @@ const spec = {
         responses: { 200: { description: 'Updated' }, 403: { description: 'Not creator or assignee', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } } },
       },
       delete: { tags: ['Tasks'], summary: 'Delete task', description: 'Requires admin role', responses: { 200: { description: 'Deleted' } } },
+    },
+
+    // ── Prolink: Contractors ──────────────────────────────────────────────────
+    '/contractors': {
+      get: {
+        tags: ['Prolink'],
+        summary: 'List contractors',
+        parameters: [
+          { name: 'search',          in: 'query', schema: { type: 'string' }, description: 'Search company or contact name' },
+          { name: 'contractor_type', in: 'query', schema: { type: 'string', enum: ['general','electrical','plumbing','framing','roofing','hvac','concrete','masonry','painting','landscaping','other'] } },
+          { name: 'status',          in: 'query', schema: { type: 'string', enum: ['active','inactive','suspended','pending_review'] } },
+          { name: 'approved_only',   in: 'query', schema: { type: 'boolean' }, description: 'Only return approved vendors' },
+          { name: 'page',            in: 'query', schema: { type: 'integer', default: 1 } },
+          { name: 'per_page',        in: 'query', schema: { type: 'integer', default: 25, maximum: 100 } },
+        ],
+        responses: {
+          200: { description: 'Contractor list', content: { 'application/json': { schema: { type: 'object', properties: { success: { type: 'boolean' }, data: { type: 'array', items: { $ref: '#/components/schemas/Contractor' } }, pagination: { $ref: '#/components/schemas/Pagination' } } } } } },
+        },
+      },
+      post: {
+        tags: ['Prolink'],
+        summary: 'Create contractor',
+        description: 'Requires admin or loan_officer role. Contractor starts in pending_review status.',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['company_name', 'contractor_type'],
+                properties: {
+                  company_name:          { type: 'string' },
+                  dba_name:              { type: 'string' },
+                  contractor_type:       { type: 'string', enum: ['general','electrical','plumbing','framing','roofing','hvac','concrete','masonry','painting','landscaping','other'] },
+                  license_number:        { type: 'string' },
+                  license_state:         { type: 'string' },
+                  license_expiry:        { type: 'string', format: 'date' },
+                  insurance_carrier:     { type: 'string' },
+                  insurance_policy:      { type: 'string' },
+                  insurance_expiry:      { type: 'string', format: 'date' },
+                  insurance_amount:      { type: 'number' },
+                  bond_carrier:          { type: 'string' },
+                  bond_number:           { type: 'string' },
+                  bond_amount:           { type: 'number' },
+                  bond_expiry:           { type: 'string', format: 'date' },
+                  tax_id:                { type: 'string' },
+                  address_line1:         { type: 'string' },
+                  city:                  { type: 'string' },
+                  state:                 { type: 'string' },
+                  zip_code:              { type: 'string' },
+                  primary_contact_name:  { type: 'string' },
+                  primary_contact_email: { type: 'string', format: 'email' },
+                  primary_contact_phone: { type: 'string' },
+                  notes:                 { type: 'string' },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          201: { description: 'Contractor created', content: { 'application/json': { schema: { type: 'object', properties: { success: { type: 'boolean' }, data: { $ref: '#/components/schemas/Contractor' } } } } } },
+        },
+      },
+    },
+    '/contractors/{id}': {
+      parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+      get:    { tags: ['Prolink'], summary: 'Get contractor',    responses: { 200: { description: 'Contractor detail', content: { 'application/json': { schema: { type: 'object', properties: { success: { type: 'boolean' }, data: { $ref: '#/components/schemas/Contractor' } } } } } }, 404: { description: 'Not found' } } },
+      put:    { tags: ['Prolink'], summary: 'Update contractor', requestBody: { content: { 'application/json': { schema: { type: 'object' } } } }, responses: { 200: { description: 'Updated' } } },
+      delete: { tags: ['Prolink'], summary: 'Deactivate contractor', description: 'Requires admin. Soft delete.', responses: { 200: { description: 'Deactivated' } } },
+    },
+    '/contractors/{id}/approve': {
+      parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+      post: {
+        tags: ['Prolink'],
+        summary: 'Approve contractor as vendor',
+        description: 'Requires admin. Sets is_approved_vendor=true and status=active.',
+        responses: { 200: { description: 'Contractor approved', content: { 'application/json': { schema: { type: 'object', properties: { success: { type: 'boolean' }, data: { $ref: '#/components/schemas/Contractor' } } } } } } },
+      },
+    },
+    '/contractors/{id}/suspend': {
+      parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+      post: {
+        tags: ['Prolink'],
+        summary: 'Suspend contractor',
+        description: 'Requires admin. Removes approved vendor status.',
+        responses: { 200: { description: 'Contractor suspended' } },
+      },
+    },
+
+    // ── Prolink: Loan Contractors ─────────────────────────────────────────────
+    '/loans/{loanId}/contractors': {
+      parameters: [{ name: 'loanId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+      get: {
+        tags: ['Prolink'],
+        summary: 'List contractors on loan',
+        responses: { 200: { description: 'Contractors assigned to the loan', content: { 'application/json': { schema: { type: 'object', properties: { success: { type: 'boolean' }, data: { type: 'array', items: { $ref: '#/components/schemas/LoanContractor' } } } } } } } },
+      },
+      post: {
+        tags: ['Prolink'],
+        summary: 'Assign contractor to loan',
+        description: 'Requires admin or loan_officer. Contractor must belong to same organization.',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['contractor_id', 'role'],
+                properties: {
+                  contractor_id:            { type: 'string', format: 'uuid' },
+                  role:                     { type: 'string', enum: ['general_contractor','sub_contractor','architect','engineer','inspector'] },
+                  contract_amount:          { type: 'number' },
+                  scope_of_work:            { type: 'string' },
+                  start_date:               { type: 'string', format: 'date' },
+                  expected_completion_date: { type: 'string', format: 'date' },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          201: { description: 'Contractor assigned', content: { 'application/json': { schema: { type: 'object', properties: { success: { type: 'boolean' }, data: { $ref: '#/components/schemas/LoanContractor' } } } } } },
+          409: { description: 'Contractor already assigned with this role' },
+        },
+      },
+    },
+    '/loans/{loanId}/contractors/{id}': {
+      parameters: [
+        { name: 'loanId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+        { name: 'id',     in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+      ],
+      get:    { tags: ['Prolink'], summary: 'Get loan contractor detail', responses: { 200: { description: 'Detail' } } },
+      put:    { tags: ['Prolink'], summary: 'Update loan contractor',      requestBody: { content: { 'application/json': { schema: { type: 'object' } } } }, responses: { 200: { description: 'Updated' } } },
+      delete: { tags: ['Prolink'], summary: 'Remove contractor from loan', description: 'Requires admin.', responses: { 200: { description: 'Removed' } } },
+    },
+
+    // ── Prolink: Draw Requests ────────────────────────────────────────────────
+    '/loans/{loanId}/draw-requests': {
+      parameters: [{ name: 'loanId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } }],
+      get: {
+        tags: ['Prolink'],
+        summary: 'List draw requests',
+        parameters: [
+          { name: 'status', in: 'query', schema: { type: 'string', enum: ['draft','submitted','inspection_scheduled','inspection_complete','approved','rejected','funded'] } },
+        ],
+        responses: { 200: { description: 'Draw request list with total funded meta', content: { 'application/json': { schema: { type: 'object', properties: { success: { type: 'boolean' }, data: { type: 'array', items: { $ref: '#/components/schemas/DrawRequest' } }, meta: { type: 'object', properties: { total_funded: { type: 'number' } } } } } } } } },
+      },
+      post: {
+        tags: ['Prolink'],
+        summary: 'Create draw request (draft)',
+        description: 'Draw number is auto-incremented per loan. Requires admin or loan_officer.',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['requested_amount'],
+                properties: {
+                  contractor_id:    { type: 'string', format: 'uuid' },
+                  requested_amount: { type: 'number' },
+                  requested_date:   { type: 'string', format: 'date' },
+                  description:      { type: 'string' },
+                  line_items:       { type: 'object', description: 'Freeform line item breakdown' },
+                  percent_complete: { type: 'number', minimum: 0, maximum: 100 },
+                },
+              },
+            },
+          },
+        },
+        responses: { 201: { description: 'Draw request created', content: { 'application/json': { schema: { type: 'object', properties: { success: { type: 'boolean' }, data: { $ref: '#/components/schemas/DrawRequest' } } } } } } },
+      },
+    },
+    '/loans/{loanId}/draw-requests/{id}': {
+      parameters: [
+        { name: 'loanId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+        { name: 'id',     in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+      ],
+      get:    { tags: ['Prolink'], summary: 'Get draw request',    responses: { 200: { description: 'Draw request detail' } } },
+      put:    { tags: ['Prolink'], summary: 'Update draft',        description: 'Only allowed while status=draft.', requestBody: { content: { 'application/json': { schema: { type: 'object' } } } }, responses: { 200: { description: 'Updated' }, 422: { description: 'Not a draft' } } },
+      delete: { tags: ['Prolink'], summary: 'Delete draft',        description: 'Only allowed while status=draft.', responses: { 200: { description: 'Deleted' }, 422: { description: 'Not a draft' } } },
+    },
+    '/loans/{loanId}/draw-requests/{id}/submit': {
+      parameters: [
+        { name: 'loanId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+        { name: 'id',     in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+      ],
+      post: { tags: ['Prolink'], summary: 'Submit draw request for review', responses: { 200: { description: 'Submitted' }, 422: { description: 'Not a draft' } } },
+    },
+    '/loans/{loanId}/draw-requests/{id}/schedule-inspection': {
+      parameters: [
+        { name: 'loanId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+        { name: 'id',     in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+      ],
+      post: {
+        tags: ['Prolink'],
+        summary: 'Schedule inspection',
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['inspector_name','inspection_date'], properties: { inspector_name: { type: 'string' }, inspection_date: { type: 'string', format: 'date' } } } } } },
+        responses: { 200: { description: 'Inspection scheduled' }, 422: { description: 'Must be in submitted status' } },
+      },
+    },
+    '/loans/{loanId}/draw-requests/{id}/complete-inspection': {
+      parameters: [
+        { name: 'loanId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+        { name: 'id',     in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+      ],
+      post: {
+        tags: ['Prolink'],
+        summary: 'Complete inspection',
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['percent_complete'], properties: { percent_complete: { type: 'number', minimum: 0, maximum: 100 }, inspection_notes: { type: 'string' } } } } } },
+        responses: { 200: { description: 'Inspection completed' }, 422: { description: 'Inspection not yet scheduled' } },
+      },
+    },
+    '/loans/{loanId}/draw-requests/{id}/approve': {
+      parameters: [
+        { name: 'loanId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+        { name: 'id',     in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+      ],
+      post: {
+        tags: ['Prolink'],
+        summary: 'Approve draw request',
+        description: 'Requires admin. Can approve from submitted or inspection_complete status.',
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['approved_amount'], properties: { approved_amount: { type: 'number' } } } } } },
+        responses: { 200: { description: 'Approved' }, 422: { description: 'Invalid status transition' } },
+      },
+    },
+    '/loans/{loanId}/draw-requests/{id}/reject': {
+      parameters: [
+        { name: 'loanId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+        { name: 'id',     in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+      ],
+      post: {
+        tags: ['Prolink'],
+        summary: 'Reject draw request',
+        description: 'Requires admin.',
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', required: ['rejection_reason'], properties: { rejection_reason: { type: 'string' } } } } } },
+        responses: { 200: { description: 'Rejected' } },
+      },
+    },
+    '/loans/{loanId}/draw-requests/{id}/fund': {
+      parameters: [
+        { name: 'loanId', in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+        { name: 'id',     in: 'path', required: true, schema: { type: 'string', format: 'uuid' } },
+      ],
+      post: {
+        tags: ['Prolink'],
+        summary: 'Fund draw request',
+        description: 'Requires admin. Marks draw as funded and increments loan current_balance.',
+        responses: { 200: { description: 'Funded and loan balance updated' }, 422: { description: 'Must be approved first' } },
+      },
     },
   },
 };

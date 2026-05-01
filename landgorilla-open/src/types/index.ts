@@ -181,3 +181,95 @@ export interface PortfolioSummary {
   loans_by_type: Record<string, number>;
   loans_by_status: Record<string, number>;
 }
+
+// ── Prolink Contractor Module ────────────────────────────────
+
+export type ContractorType =
+  | 'general' | 'electrical' | 'plumbing' | 'framing' | 'roofing'
+  | 'hvac' | 'concrete' | 'masonry' | 'painting' | 'landscaping' | 'other';
+
+export type ContractorStatus = 'active' | 'inactive' | 'suspended' | 'pending_review';
+
+export interface Contractor {
+  id: string;
+  organization_id: string;
+  company_name: string;
+  dba_name?: string;
+  contractor_type: ContractorType;
+  license_number?: string;
+  license_state?: string;
+  license_expiry?: Date;
+  insurance_carrier?: string;
+  insurance_policy?: string;
+  insurance_expiry?: Date;
+  insurance_amount?: number;
+  bond_carrier?: string;
+  bond_number?: string;
+  bond_amount?: number;
+  bond_expiry?: Date;
+  tax_id?: string;
+  address_line1?: string;
+  address_line2?: string;
+  city?: string;
+  state?: string;
+  zip_code?: string;
+  primary_contact_name?: string;
+  primary_contact_email?: string;
+  primary_contact_phone?: string;
+  status: ContractorStatus;
+  is_approved_vendor: boolean;
+  approved_by?: string;
+  approved_at?: Date;
+  notes?: string;
+  is_active: boolean;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export type LoanContractorRole =
+  | 'general_contractor' | 'sub_contractor' | 'architect' | 'engineer' | 'inspector';
+
+export interface LoanContractor {
+  id: string;
+  loan_id: string;
+  contractor_id: string;
+  role: LoanContractorRole;
+  contract_amount?: number;
+  scope_of_work?: string;
+  start_date?: Date;
+  expected_completion_date?: Date;
+  actual_completion_date?: Date;
+  status: 'active' | 'completed' | 'terminated';
+  created_at: Date;
+  updated_at: Date;
+}
+
+export type DrawRequestStatus =
+  | 'draft' | 'submitted' | 'inspection_scheduled'
+  | 'inspection_complete' | 'approved' | 'rejected' | 'funded';
+
+export interface DrawRequest {
+  id: string;
+  loan_id: string;
+  contractor_id?: string;
+  draw_number: number;
+  requested_amount: number;
+  requested_date: Date;
+  description?: string;
+  line_items?: Record<string, unknown>;
+  inspector_name?: string;
+  inspection_date?: Date;
+  inspection_notes?: string;
+  percent_complete?: number;
+  approved_amount?: number;
+  status: DrawRequestStatus;
+  submitted_by?: string;
+  submitted_at?: Date;
+  approved_by?: string;
+  approved_at?: Date;
+  funded_at?: Date;
+  rejection_reason?: string;
+  is_active: boolean;
+  created_at: Date;
+  updated_at: Date;
+}
