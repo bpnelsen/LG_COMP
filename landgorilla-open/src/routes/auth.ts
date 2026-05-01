@@ -110,6 +110,58 @@ router.post('/register', async (req, res: Response): Promise<void> => {
   res.status(201).json(response);
 });
 
+// POST /auth/signup  — self-service: creates org + admin user, returns JWT
+const signupSchema = z.object({
+  email:         z.string().email(),
+  password:      z.string().min(8),
+  first_name:    z.string().min(1).max(100),
+  last_name:     z.string().min(1).max(100),
+  business_name: z.string().min(1).max(255),
+  phone:         z.string().max(30).optional(),
+  specialties:   z.array(z.string()).optional(),
+});
+
+router.post('/signup', async (req, res: Response): Promise<void> => {
+  const parsed = signupSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ success: false, error: 'Validation failed', data: parsed.error.errors }); return;
+  }
+  const { email, password, first_name, last_name, business_name, phone } = parsed.data;
+
+  const existing = await query('SELECT id FROM users WHERE email = $1', [email.toLowerCase()]);
+  if (existing.length > 0) {
+    res.status(409).json({ success: false, error: 'Email already registered' }); return;
+  }
+
+  // Create organization for this contractor
+  const orgs = await query<{ id: string }>(
+    `INSERT INTO organizations (name, type) VALUES ($1, 'private_lender') RETURNING id`,
+    [business_name]
+  );
+  const org_id = orgs[0].id;
+
+  const password_hash = await bcrypt.hash(password, 12);
+  const newUsers = await query<User>(
+    `INSERT INTO users (organization_id, email, password_hash, first_name, last_name, role, phone)
+     VALUES ($1,$2,$3,$4,$5,'admin',$6)
+     RETURNING id, organization_id, email, first_name, last_name, role, is_active, created_at`,
+    [org_id, email.toLowerCase(), password_hash, first_name, last_name, phone ?? null]
+  );
+  const user = newUsers[0];
+
+  const payload: JwtPayload = {
+    user_id: user.id,
+    organization_id: user.organization_id,
+    email: user.email,
+    role: user.role,
+  };
+  const token = jwt.sign(payload, process.env.JWT_SECRET!, {
+    expiresIn: process.env.JWT_EXPIRES_IN || '24h',
+  } as jwt.SignOptions);
+
+  res.status(201).json({ success: true, data: { token, user }, message: 'Account created' });
+});
+
 // GET /auth/me
 router.get('/me', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   const users = await query<User>(
